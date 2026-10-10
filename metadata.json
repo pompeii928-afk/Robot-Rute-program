@@ -1,0 +1,6 @@
+{
+  "name": "The Robot Rute",
+  "description": "Made by K.F.C. robotics - 로봇이 움직이는 동선이나 움직임을 가상공간에서 로봇이 그대로 따라가는 실시간 경로 추적 웹 게임",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

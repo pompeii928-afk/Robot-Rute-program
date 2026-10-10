@@ -1,0 +1,1493 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>The Robot Rute</title>
+    <meta name="description" content="Made by K.F.C. robotics - 로봇이 움직이는 동선이나 움직임을 가상공간에서 로봇이 그대로 따라가는 실시간 경로 추적 웹 게임" />
+    <meta property="og:title" content="The Robot Rute" />
+    <meta property="og:description" content="Made by K.F.C. robotics - 로봇이 움직이는 동선이나 움직임을 가상공간에서 로봇이 그대로 따라가는 실시간 경로 추적 웹 게임" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script type="application/json" id="replay-manifest">
+{
+  "protocol": 1,
+  "id": "student.1c9869f16e4441daa90c25aeb80dae76",
+  "name": "The Robot Rute",
+  "profile": {
+    "version": 3,
+    "devices": {
+      "tilt": {
+        "type": "gyro",
+        "label": "허브 자세·방향",
+        "use": "input",
+        "behavior": {
+          "preset": "custom",
+          "description": "로봇이 도는 각도 그대로 사이트에 가상의 로봇이 로봇의 움직임을 그대로 따라가야 한다."
+        }
+      }
+    }
+  },
+  "commands": [
+    "light",
+    "stop"
+  ],
+  "description": "Made by K.F.C. robotics",
+  "controls": [
+    "로봇에게 움직임을 부여하면 그대로 사이트에 있는 가상의 로봇이 움직인다."
+  ],
+  "inputs": [
+    {
+      "name": "action_tilt",
+      "role": "tilt",
+      "field": "heading_deg",
+      "mode": "continuous"
+    }
+  ],
+  "revision": "1",
+  "cover": "",
+  "preview": ""
+}
+    </script>
+    <script src="spike.js"></script>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        -webkit-tap-highlight-color: transparent;
+      }
+      :root {
+        --bg-main: #050811;
+        --bg-panel: #0b1325;
+        --bg-card: #101c36;
+        --border-subtle: #1e2f52;
+        --border-glow: #00f0ff;
+        --text-primary: #f0f6fc;
+        --text-secondary: #8b9bb4;
+        --accent-cyan: #00f0ff;
+        --accent-amber: #f59e0b;
+        --accent-green: #10b981;
+        --accent-rose: #f43f5e;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Pretendard", "Noto Sans KR", sans-serif;
+        background-color: var(--bg-main);
+        color: var(--text-primary);
+        min-height: 100vh;
+        width: 100vw;
+        overflow: hidden;
+        user-select: none;
+        display: flex;
+        flex-direction: column;
+      }
+      /* Header HUD */
+      header {
+        height: 56px;
+        background: linear-gradient(180deg, rgba(11, 19, 37, 0.96) 0%, rgba(7, 13, 26, 0.9) 100%);
+        border-bottom: 1px solid var(--border-subtle);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 16px;
+        z-index: 20;
+        backdrop-filter: blur(8px);
+      }
+      .brand-box {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .brand-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        background: linear-gradient(135deg, #00f0ff 0%, #0077ff 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 0 12px rgba(0, 240, 255, 0.35);
+      }
+      .brand-title {
+        font-size: 16px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        color: #ffffff;
+      }
+      .brand-sub {
+        font-size: 11px;
+        color: var(--accent-cyan);
+        letter-spacing: 0.3px;
+      }
+      .header-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 500;
+        background: rgba(16, 28, 54, 0.85);
+        border: 1px solid var(--border-subtle);
+        color: var(--text-secondary);
+      }
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background-color: #64748b;
+      }
+      .status-pill.ready .status-dot {
+        background-color: var(--accent-green);
+        box-shadow: 0 0 8px var(--accent-green);
+      }
+      .status-pill.running .status-dot {
+        background-color: var(--accent-cyan);
+        box-shadow: 0 0 8px var(--accent-cyan);
+        animation: pulse-dot 1.4s infinite;
+      }
+      .status-pill.warn .status-dot {
+        background-color: var(--accent-amber);
+        box-shadow: 0 0 8px var(--accent-amber);
+      }
+      .status-pill.danger .status-dot {
+        background-color: var(--accent-rose);
+      }
+      @keyframes pulse-dot {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.4; transform: scale(1.2); }
+      }
+      .btn-header {
+        height: 36px;
+        padding: 0 12px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        transition: all 0.15s ease;
+        border: 1px solid var(--border-subtle);
+        background: rgba(16, 28, 54, 0.8);
+        color: var(--text-primary);
+      }
+      .btn-header:hover:not(:disabled) {
+        border-color: var(--accent-cyan);
+        background: rgba(0, 240, 255, 0.1);
+      }
+      .btn-header:active:not(:disabled) {
+        transform: scale(0.97);
+      }
+      .btn-exit {
+        border-color: rgba(244, 63, 94, 0.4);
+        color: #fecdd3;
+      }
+      .btn-exit:hover:not(:disabled) {
+        background: rgba(244, 63, 94, 0.15);
+        border-color: var(--accent-rose);
+      }
+
+      /* Main Workspace Layout */
+      main {
+        flex: 1;
+        position: relative;
+        display: flex;
+        overflow: hidden;
+      }
+      #viewport-container {
+        flex: 1;
+        position: relative;
+        height: 100%;
+        overflow: hidden;
+      }
+      canvas#gameCanvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        background-color: var(--bg-main);
+      }
+
+      /* Floating Telemetry HUD */
+      .telemetry-overlay {
+        position: absolute;
+        top: 14px;
+        left: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        pointer-events: none;
+        z-index: 10;
+      }
+      .hud-card {
+        background: rgba(11, 19, 37, 0.85);
+        border: 1px solid var(--border-subtle);
+        border-radius: 10px;
+        padding: 8px 14px;
+        backdrop-filter: blur(8px);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .hud-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        font-weight: 600;
+        letter-spacing: 0.5px;
+      }
+      .hud-value {
+        font-size: 18px;
+        font-weight: 700;
+        font-family: ui-monospace, "SF Mono", Consolas, monospace;
+        color: #ffffff;
+      }
+      .hud-value.cyan {
+        color: var(--accent-cyan);
+        text-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+      }
+      .hud-value.amber {
+        color: var(--accent-amber);
+      }
+
+      /* Mini Compass Ring */
+      .compass-hud {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        background: rgba(11, 19, 37, 0.85);
+        border: 1px solid var(--border-subtle);
+        border-radius: 12px;
+        padding: 10px;
+        backdrop-filter: blur(8px);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        pointer-events: none;
+        z-index: 10;
+      }
+      .compass-svg {
+        width: 72px;
+        height: 72px;
+      }
+      .compass-caption {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-secondary);
+      }
+
+      /* Control Dock at Bottom */
+      footer {
+        background: linear-gradient(0deg, rgba(7, 13, 26, 0.98) 0%, rgba(11, 19, 37, 0.92) 100%);
+        border-top: 1px solid var(--border-subtle);
+        padding: 12px 16px;
+        z-index: 20;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .dock-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .controls-primary {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .btn-primary {
+        height: 44px;
+        min-width: 120px;
+        padding: 0 20px;
+        border-radius: 10px;
+        font-size: 15px;
+        font-weight: 700;
+        border: none;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        background: linear-gradient(135deg, #00f0ff 0%, #0099ff 100%);
+        color: #040915;
+        box-shadow: 0 4px 16px rgba(0, 240, 255, 0.35);
+        transition: all 0.15s ease;
+      }
+      .btn-primary:hover:not(:disabled) {
+        box-shadow: 0 6px 20px rgba(0, 240, 255, 0.5);
+        transform: translateY(-1px);
+      }
+      .btn-primary:active:not(:disabled) {
+        transform: translateY(1px);
+      }
+      .btn-primary:disabled {
+        background: #1a2744;
+        color: #55698b;
+        box-shadow: none;
+        cursor: not-allowed;
+      }
+      .btn-secondary {
+        height: 44px;
+        padding: 0 16px;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 600;
+        border: 1px solid var(--border-subtle);
+        background: rgba(16, 28, 54, 0.85);
+        color: var(--text-primary);
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        transition: all 0.15s ease;
+      }
+      .btn-secondary:hover:not(:disabled) {
+        border-color: var(--accent-cyan);
+        background: rgba(0, 240, 255, 0.12);
+      }
+      .btn-secondary:active:not(:disabled) {
+        transform: scale(0.98);
+      }
+      .btn-secondary:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      /* Control Parameter Groups */
+      .dock-param-group {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      .param-box {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: rgba(16, 28, 54, 0.7);
+        border: 1px solid var(--border-subtle);
+        border-radius: 8px;
+        padding: 6px 12px;
+      }
+      .param-label {
+        font-size: 12px;
+        color: var(--text-secondary);
+        font-weight: 600;
+      }
+      .param-slider-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      input[type="range"] {
+        appearance: none;
+        -webkit-appearance: none;
+        width: 100px;
+        height: 6px;
+        background: #1e2f52;
+        border-radius: 3px;
+        outline: none;
+      }
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--accent-cyan);
+        box-shadow: 0 0 8px rgba(0, 240, 255, 0.6);
+        cursor: pointer;
+      }
+      .param-val-text {
+        font-size: 13px;
+        font-weight: 700;
+        font-family: ui-monospace, "SF Mono", Consolas, monospace;
+        color: var(--accent-cyan);
+        min-width: 38px;
+        text-align: right;
+      }
+
+      /* Speed Selector Buttons */
+      .speed-btn-group {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .speed-btn {
+        height: 30px;
+        padding: 0 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        border: 1px solid var(--border-subtle);
+        background: #13203c;
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      .speed-btn.active {
+        background: var(--accent-cyan);
+        color: #040915;
+        border-color: var(--accent-cyan);
+        font-weight: 700;
+      }
+
+      /* Modal / Banner Overlays */
+      .notice-banner {
+        position: absolute;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(11, 19, 37, 0.94);
+        border: 1px solid var(--border-glow);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(0, 240, 255, 0.2);
+        padding: 12px 24px;
+        border-radius: 12px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #ffffff;
+        z-index: 100;
+        display: none;
+        backdrop-filter: blur(10px);
+        text-align: center;
+      }
+      .notice-banner.danger {
+        border-color: var(--accent-rose);
+        color: #ffe4e6;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(244, 63, 94, 0.25);
+      }
+
+      /* Standby Splash */
+      .standby-splash {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(circle at center, rgba(11, 19, 37, 0.85) 0%, rgba(5, 8, 17, 0.95) 100%);
+        backdrop-filter: blur(4px);
+        z-index: 15;
+        padding: 24px;
+        text-align: center;
+        pointer-events: none;
+      }
+      .standby-card {
+        background: rgba(16, 28, 54, 0.85);
+        border: 1px solid var(--border-subtle);
+        border-radius: 16px;
+        padding: 28px 36px;
+        max-width: 480px;
+        width: 100%;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+      }
+      .standby-title {
+        font-size: 22px;
+        font-weight: 700;
+        margin-bottom: 8px;
+        color: #ffffff;
+      }
+      .standby-desc {
+        font-size: 14px;
+        color: var(--text-secondary);
+        line-height: 1.6;
+        margin-bottom: 20px;
+      }
+      .standby-badge {
+        display: inline-block;
+        padding: 8px 16px;
+        border-radius: 8px;
+        background: rgba(245, 158, 11, 0.15);
+        border: 1px solid rgba(245, 158, 11, 0.4);
+        color: #fef08a;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .standby-badge.ready {
+        background: rgba(16, 185, 129, 0.15);
+        border-color: rgba(16, 185, 129, 0.4);
+        color: #a7f3d0;
+      }
+
+      /* Responsive rules */
+      @media (max-width: 640px) {
+        header {
+          padding: 0 10px;
+        }
+        .brand-sub {
+          display: none;
+        }
+        .telemetry-overlay {
+          top: 8px;
+          left: 8px;
+          gap: 6px;
+        }
+        .hud-card {
+          padding: 6px 10px;
+          gap: 8px;
+        }
+        .hud-value {
+          font-size: 15px;
+        }
+        .compass-hud {
+          top: 8px;
+          right: 8px;
+          padding: 6px;
+        }
+        .compass-svg {
+          width: 54px;
+          height: 54px;
+        }
+        footer {
+          padding: 10px;
+        }
+        .btn-primary {
+          min-width: 90px;
+          height: 40px;
+          padding: 0 14px;
+          font-size: 14px;
+        }
+        .btn-secondary {
+          height: 40px;
+          padding: 0 12px;
+          font-size: 13px;
+        }
+        input[type="range"] {
+          width: 70px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Header HUD -->
+    <header>
+      <div class="brand-box">
+        <div class="brand-icon">
+          <!-- Clean SVG Robot Icon -->
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="10" rx="2"></rect>
+            <circle cx="12" cy="5" r="2"></circle>
+            <path d="M12 7v4"></path>
+            <line x1="8" y1="16" x2="8.01" y2="16"></line>
+            <line x1="16" y1="16" x2="16.01" y2="16"></line>
+          </svg>
+        </div>
+        <div>
+          <div class="brand-title">The Robot Rute</div>
+          <div class="brand-sub">Made by K.F.C. robotics</div>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <div class="status-pill" id="statusPill">
+          <div class="status-dot"></div>
+          <span id="statusText">초기화 중</span>
+        </div>
+
+        <button type="button" class="btn-header" id="soundToggleBtn">
+          <!-- Audio Wave SVG -->
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          </svg>
+          <span id="soundLabel">소리 끄기</span>
+        </button>
+
+        <button type="button" class="btn-header btn-exit" id="exitBtn">
+          <!-- Stop / Exit SVG -->
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="4" width="16" height="16" rx="2"></rect>
+          </svg>
+          <span>게임 종료</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main>
+      <div id="viewport-container">
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- Standby Splash Screen -->
+        <div class="standby-splash" id="standbySplash">
+          <div class="standby-card">
+            <div class="standby-title">The Robot Rute</div>
+            <div class="standby-desc">
+              로봇이 회전하고 움직이는 동선을 가상 공간에서 실시간으로 추적합니다.<br />
+              실제 로봇의 각도와 동일하게 가상 로봇이 경로를 그립니다.
+            </div>
+            <div class="standby-badge" id="standbyBadge">
+              REPLAY에서 실행해 주세요
+            </div>
+          </div>
+        </div>
+
+        <!-- Telemetry Floating HUD -->
+        <div class="telemetry-overlay" id="telemetryOverlay" style="display: none;">
+          <div class="hud-card">
+            <div>
+              <div class="hud-label">현재 방향</div>
+              <div class="hud-value cyan" id="hudHeading">000.0°</div>
+            </div>
+          </div>
+          <div class="hud-card">
+            <div>
+              <div class="hud-label">누적 이동 거리</div>
+              <div class="hud-value" id="hudDistance">0.00 m</div>
+            </div>
+          </div>
+          <div class="hud-card">
+            <div>
+              <div class="hud-label">추적 좌표 수</div>
+              <div class="hud-value amber" id="hudPoints">0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Compass Ring HUD -->
+        <div class="compass-hud" id="compassHud" style="display: none;">
+          <svg class="compass-svg" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="44" fill="none" stroke="#1e2f52" stroke-width="2"></circle>
+            <circle cx="50" cy="50" r="38" fill="none" stroke="#13203c" stroke-width="1" stroke-dasharray="2 3"></circle>
+            <!-- North Marker -->
+            <text x="50" y="16" fill="#00f0ff" font-size="10" font-weight="700" text-anchor="middle">N</text>
+            <text x="86" y="53" fill="#8b9bb4" font-size="8" font-weight="600" text-anchor="middle">E</text>
+            <text x="50" y="90" fill="#8b9bb4" font-size="8" font-weight="600" text-anchor="middle">S</text>
+            <text x="14" y="53" fill="#8b9bb4" font-size="8" font-weight="600" text-anchor="middle">W</text>
+            <!-- Needle -->
+            <g id="compassNeedle" transform="rotate(0 50 50)">
+              <polygon points="50,22 54,50 46,50" fill="#00f0ff"></polygon>
+              <polygon points="50,78 54,50 46,50" fill="#64748b"></polygon>
+              <circle cx="50" cy="50" r="4" fill="#ffffff"></circle>
+            </g>
+          </svg>
+          <div class="compass-caption" id="compassAngleText">0.0°</div>
+        </div>
+
+        <!-- Banner for System Messages -->
+        <div class="notice-banner" id="noticeBanner"></div>
+      </div>
+    </main>
+
+    <!-- Bottom Controls Dock -->
+    <footer>
+      <div class="dock-row">
+        <div class="controls-primary">
+          <button type="button" class="btn-primary" id="startBtn" disabled>
+            <!-- Play SVG -->
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            <span id="startBtnText">주행 시작</span>
+          </button>
+
+          <button type="button" class="btn-secondary" id="resetCenterBtn">
+            <!-- Target / Reset SVG -->
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="22" y1="12" x2="18" y2="12"></line>
+              <line x1="6" y1="12" x2="2" y2="12"></line>
+              <line x1="12" y1="6" x2="12" y2="2"></line>
+              <line x1="12" y1="22" x2="12" y2="18"></line>
+            </svg>
+            <span>중심 다시 맞추기 (R)</span>
+          </button>
+
+          <button type="button" class="btn-secondary" id="clearRouteBtn">
+            <!-- Trash / Eraser SVG -->
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 6h18"></path>
+              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+            </svg>
+            <span>동선 초기화</span>
+          </button>
+
+          <button type="button" class="btn-secondary" id="viewModeBtn">
+            <!-- Camera / Eye SVG -->
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+            <span id="viewModeText">시점: 로봇 추적</span>
+          </button>
+        </div>
+
+        <div class="dock-param-group">
+          <!-- Sensitivity Slider -->
+          <div class="param-box">
+            <span class="param-label">자이로 감도</span>
+            <div class="param-slider-wrapper">
+              <input type="range" id="sensitivitySlider" min="0.5" max="2.0" step="0.1" value="1.0" />
+              <span class="param-val-text" id="sensitivityVal">1.0x</span>
+            </div>
+          </div>
+
+          <!-- Drive Speed Setting -->
+          <div class="param-box">
+            <span class="param-label">주행 속도</span>
+            <div class="speed-btn-group" id="speedGroup">
+              <button type="button" class="speed-btn" data-speed="0">정지</button>
+              <button type="button" class="speed-btn" data-speed="1">저속</button>
+              <button type="button" class="speed-btn active" data-speed="2">보통</button>
+              <button type="button" class="speed-btn" data-speed="3">고속</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </footer>
+
+    <!-- Game Engine Script -->
+    <script>
+      (function () {
+        'use strict';
+
+        // DOM elements
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const startBtn = document.getElementById('startBtn');
+        const startBtnText = document.getElementById('startBtnText');
+        const exitBtn = document.getElementById('exitBtn');
+        const soundToggleBtn = document.getElementById('soundToggleBtn');
+        const soundLabel = document.getElementById('soundLabel');
+        const resetCenterBtn = document.getElementById('resetCenterBtn');
+        const clearRouteBtn = document.getElementById('clearRouteBtn');
+        const viewModeBtn = document.getElementById('viewModeBtn');
+        const viewModeText = document.getElementById('viewModeText');
+        const sensitivitySlider = document.getElementById('sensitivitySlider');
+        const sensitivityVal = document.getElementById('sensitivityVal');
+        const speedGroup = document.getElementById('speedGroup');
+        const statusPill = document.getElementById('statusPill');
+        const statusText = document.getElementById('statusText');
+        const standbySplash = document.getElementById('standbySplash');
+        const standbyBadge = document.getElementById('standbyBadge');
+        const telemetryOverlay = document.getElementById('telemetryOverlay');
+        const compassHud = document.getElementById('compassHud');
+        const hudHeading = document.getElementById('hudHeading');
+        const hudDistance = document.getElementById('hudDistance');
+        const hudPoints = document.getElementById('hudPoints');
+        const compassNeedle = document.getElementById('compassNeedle');
+        const compassAngleText = document.getElementById('compassAngleText');
+        const noticeBanner = document.getElementById('noticeBanner');
+
+        // State variables
+        let isReady = false;
+        let isRunning = false;
+        let isCalibrated = false;
+        let isMuted = false;
+        let isOverviewMode = false;
+
+        // Robot & Route physics
+        let robotX = 0;
+        let robotY = 0;
+        let rawHeading = 0;
+        let zeroHeading = 0;
+        let targetHeading = 0;
+        let currentHeading = 0;
+        let sensitivity = 1.0;
+        let speedLevel = 2; // 0: 0, 1: 50 px/s, 2: 120 px/s, 3: 220 px/s
+        const speedMultipliers = [0, 55, 125, 230];
+        let totalDistance = 0;
+        let pathPoints = []; // [{x, y, heading, dist}]
+        let lastFrameTime = performance.now();
+        let animationFrameId = null;
+
+        // Audio state
+        let audioCtx = null;
+        let engineOsc = null;
+        let engineGain = null;
+
+        // Banner timer
+        let bannerTimeout = null;
+
+        function showBanner(msg, isDanger = false, duration = 3000) {
+          if (bannerTimeout) clearTimeout(bannerTimeout);
+          noticeBanner.textContent = msg;
+          noticeBanner.className = 'notice-banner' + (isDanger ? ' danger' : '');
+          noticeBanner.style.display = 'block';
+          if (duration > 0) {
+            bannerTimeout = setTimeout(() => {
+              noticeBanner.style.display = 'none';
+            }, duration);
+          }
+        }
+
+        function hideBanner() {
+          if (bannerTimeout) clearTimeout(bannerTimeout);
+          noticeBanner.style.display = 'none';
+        }
+
+        function setStatus(text, type) {
+          statusText.textContent = text;
+          statusPill.className = 'status-pill ' + type;
+        }
+
+        // Initialize Audio using SDK or WebAudio fallback
+        function initAudio() {
+          if (isMuted) return;
+          try {
+            if (window.spike && window.spike.audio) {
+              window.spike.audio.start();
+              audioCtx = window.spike.audio.context();
+            } else if (!audioCtx) {
+              const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+              if (AudioContextClass) {
+                audioCtx = new AudioContextClass();
+              }
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+              audioCtx.resume();
+            }
+          } catch (e) {
+            // Audio context policy
+          }
+        }
+
+        function stopAudio() {
+          if (window.spike && window.spike.audio) {
+            try {
+              window.spike.audio.stop();
+            } catch (e) {}
+          }
+          if (engineOsc) {
+            try {
+              engineOsc.stop();
+              engineOsc.disconnect();
+            } catch (e) {}
+            engineOsc = null;
+          }
+          if (engineGain) {
+            try {
+              engineGain.disconnect();
+            } catch (e) {}
+            engineGain = null;
+          }
+        }
+
+        function playTone(freq, duration, type = 'sine', volume = 0.15) {
+          if (isMuted) return;
+          try {
+            let ctxToUse = null;
+            if (window.spike && window.spike.audio) {
+              ctxToUse = window.spike.audio.context();
+            } else {
+              ctxToUse = audioCtx;
+            }
+            if (!ctxToUse || ctxToUse.state !== 'running') return;
+            const osc = ctxToUse.createOscillator();
+            const gain = ctxToUse.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, ctxToUse.currentTime);
+            gain.gain.setValueAtTime(volume, ctxToUse.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctxToUse.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(ctxToUse.destination);
+            osc.start();
+            osc.stop(ctxToUse.currentTime + duration);
+          } catch (e) {}
+        }
+
+        function playCenterResetChime() {
+          playTone(587.33, 0.1, 'sine', 0.2); // D5
+          setTimeout(() => playTone(880, 0.16, 'sine', 0.22), 80); // A5
+        }
+
+        function playStartChime() {
+          playTone(440, 0.1, 'triangle', 0.2);
+          setTimeout(() => playTone(554.37, 0.1, 'triangle', 0.2), 90);
+          setTimeout(() => playTone(659.25, 0.18, 'triangle', 0.25), 180);
+        }
+
+        // Canvas Sizing
+        function resizeCanvas() {
+          const rect = canvas.getBoundingClientRect();
+          const dpr = window.devicePixelRatio || 1;
+          canvas.width = Math.floor(rect.width * dpr);
+          canvas.height = Math.floor(rect.height * dpr);
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        // Center Recalibration (R key and button)
+        function recalibrateCenter() {
+          zeroHeading = rawHeading;
+          targetHeading = 0;
+          currentHeading = 0;
+          if (window.spike && typeof window.spike.calibrate === 'function') {
+            try {
+              window.spike.calibrate();
+            } catch (e) {}
+          }
+          playCenterResetChime();
+          showBanner('로봇 기준 방향이 0도로 재설정되었습니다.', false, 1800);
+        }
+
+        // Heading computation
+        function updateEffectiveHeading() {
+          const delta = rawHeading - zeroHeading;
+          targetHeading = delta * sensitivity;
+        }
+
+        function handleHeadingAction(val) {
+          rawHeading = val;
+          updateEffectiveHeading();
+        }
+
+        function handleTiltSensor(tiltObj) {
+          if (typeof tiltObj.heading_deg === 'number') {
+            rawHeading = tiltObj.heading_deg;
+            updateEffectiveHeading();
+          }
+        }
+
+        // Route Clear
+        function clearRoute() {
+          pathPoints = [];
+          totalDistance = 0;
+          robotX = 0;
+          robotY = 0;
+          pathPoints.push({ x: 0, y: 0, heading: currentHeading, dist: 0 });
+          playTone(400, 0.12, 'sawtooth', 0.1);
+          showBanner('동선 기록이 초기화되었습니다.', false, 1500);
+        }
+
+        // View Mode Toggle
+        function toggleViewMode() {
+          isOverviewMode = !isOverviewMode;
+          if (isOverviewMode) {
+            viewModeText.textContent = '시점: 전체 동선';
+          } else {
+            viewModeText.textContent = '시점: 로봇 추적';
+          }
+        }
+
+        // Exit / Stop Game
+        function exitGame() {
+          isRunning = false;
+          if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+          }
+          stopAudio();
+          if (window.spike && typeof window.spike.stop === 'function') {
+            try {
+              window.spike.stop();
+            } catch (e) {}
+          }
+          standbySplash.style.display = 'flex';
+          telemetryOverlay.style.display = 'none';
+          compassHud.style.display = 'none';
+          startBtnText.textContent = '주행 시작';
+          setStatus(isReady ? '허브 연결 완료' : '초기화 대기', isReady ? 'ready' : '');
+          hideBanner();
+        }
+
+        // Pause event from SDK
+        function handlePause() {
+          isRunning = false;
+          if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+          }
+          stopAudio();
+          if (window.spike && typeof window.spike.stop === 'function') {
+            try {
+              window.spike.stop();
+            } catch (e) {}
+          }
+          isReady = false;
+          startBtn.disabled = true;
+          setStatus('연결 중단됨', 'danger');
+          showBanner('REPLAY에서 다시 실행해 주세요', true, 0);
+        }
+
+        // Start / Resume Game
+        function startGame() {
+          if (!isReady) return;
+          if (!isRunning) {
+            isRunning = true;
+            initAudio();
+            playStartChime();
+            if (window.spike && typeof window.spike.calibrate === 'function') {
+              try {
+                window.spike.calibrate();
+              } catch (e) {}
+            }
+            if (window.spike && typeof window.spike.light === 'function') {
+              try {
+                window.spike.light(3);
+              } catch (e) {}
+            }
+            standbySplash.style.display = 'none';
+            telemetryOverlay.style.display = 'flex';
+            compassHud.style.display = 'flex';
+            startBtnText.textContent = '주행 중';
+            setStatus('주행 중', 'running');
+            lastFrameTime = performance.now();
+            if (pathPoints.length === 0) {
+              pathPoints.push({ x: robotX, y: robotY, heading: currentHeading, dist: 0 });
+            }
+            requestAnimationFrame(gameLoop);
+          }
+        }
+
+        // Main Simulation Loop
+        function gameLoop(timestamp) {
+          if (!isRunning) return;
+          const dt = Math.min((timestamp - lastFrameTime) / 1000, 0.1);
+          lastFrameTime = timestamp;
+
+          // Smooth heading interpolation
+          const angleDiff = targetHeading - currentHeading;
+          currentHeading += angleDiff * Math.min(1, dt * 18);
+
+          // Position integration along heading
+          const currentSpeed = speedMultipliers[speedLevel];
+          if (currentSpeed > 0) {
+            const rad = (currentHeading * Math.PI) / 180;
+            const vx = Math.sin(rad) * currentSpeed;
+            const vy = -Math.cos(rad) * currentSpeed;
+
+            robotX += vx * dt;
+            robotY += vy * dt;
+
+            const stepDist = Math.hypot(vx * dt, vy * dt);
+            totalDistance += stepDist;
+
+            // Record route points when moved or turned
+            const lastPt = pathPoints[pathPoints.length - 1];
+            if (!lastPt || Math.hypot(robotX - lastPt.x, robotY - lastPt.y) > 4 || Math.abs(currentHeading - lastPt.heading) > 3) {
+              pathPoints.push({
+                x: robotX,
+                y: robotY,
+                heading: currentHeading,
+                dist: totalDistance
+              });
+            }
+          }
+
+          // Update HUD readouts
+          const displayHeading = ((currentHeading % 360) + 360) % 360;
+          hudHeading.textContent = displayHeading.toFixed(1) + '°';
+          hudDistance.textContent = (totalDistance / 100).toFixed(2) + ' m';
+          hudPoints.textContent = pathPoints.length.toString();
+          compassNeedle.setAttribute('transform', 'rotate(' + displayHeading + ' 50 50)');
+          compassAngleText.textContent = displayHeading.toFixed(1) + '°';
+
+          // Render canvas
+          drawScene();
+
+          animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        // Render Canvas
+        function drawScene() {
+          const w = canvas.width;
+          const h = canvas.height;
+          const dpr = window.devicePixelRatio || 1;
+
+          ctx.save();
+          ctx.clearRect(0, 0, w, h);
+
+          // Camera transform
+          let camX = robotX;
+          let camY = robotY;
+          let camScale = 1.0;
+
+          if (isOverviewMode && pathPoints.length > 1) {
+            // Compute bounding box
+            let minX = robotX, maxX = robotX, minY = robotY, maxY = robotY;
+            for (let i = 0; i < pathPoints.length; i++) {
+              const pt = pathPoints[i];
+              if (pt.x < minX) minX = pt.x;
+              if (pt.x > maxX) maxX = pt.x;
+              if (pt.y < minY) minY = pt.y;
+              if (pt.y > maxY) maxY = pt.y;
+            }
+            const spanX = Math.max(maxX - minX + 160, 300);
+            const spanY = Math.max(maxY - minY + 160, 300);
+            camX = (minX + maxX) / 2;
+            camY = (minY + maxY) / 2;
+            const scaleX = (w / dpr) / spanX;
+            const scaleY = (h / dpr) / spanY;
+            camScale = Math.min(Math.max(Math.min(scaleX, scaleY), 0.2), 1.6);
+          }
+
+          ctx.scale(dpr, dpr);
+          ctx.translate((w / dpr) / 2, (h / dpr) / 2);
+          ctx.scale(camScale, camScale);
+          ctx.translate(-camX, -camY);
+
+          // Draw Cybernetic Grid
+          drawGrid(camX, camY, (w / dpr) / camScale, (h / dpr) / camScale);
+
+          // Draw Traveled Route Path
+          drawRoute();
+
+          // Draw Start Marker
+          drawStartMarker();
+
+          // Draw Virtual Robot
+          drawRobot(robotX, robotY, currentHeading);
+
+          ctx.restore();
+        }
+
+        function drawGrid(cx, cy, viewW, viewH) {
+          const startX = Math.floor((cx - viewW / 2) / 40) * 40;
+          const endX = Math.ceil((cx + viewW / 2) / 40) * 40;
+          const startY = Math.floor((cy - viewH / 2) / 40) * 40;
+          const endY = Math.ceil((cy + viewH / 2) / 40) * 40;
+
+          // Minor grid lines
+          ctx.strokeStyle = '#0d1830';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          for (let x = startX; x <= endX; x += 40) {
+            ctx.moveTo(x, startY);
+            ctx.lineTo(x, endY);
+          }
+          for (let y = startY; y <= endY; y += 40) {
+            ctx.moveTo(startX, y);
+            ctx.lineTo(endX, y);
+          }
+          ctx.stroke();
+
+          // Major grid lines & coordinates
+          ctx.strokeStyle = '#182b52';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          for (let x = Math.floor((cx - viewW / 2) / 200) * 200; x <= endX; x += 200) {
+            ctx.moveTo(x, startY);
+            ctx.lineTo(x, endY);
+          }
+          for (let y = Math.floor((cy - viewH / 2) / 200) * 200; y <= endY; y += 200) {
+            ctx.moveTo(startX, y);
+            ctx.lineTo(endX, y);
+          }
+          ctx.stroke();
+
+          // Coordinate numbers
+          ctx.fillStyle = '#3a537f';
+          ctx.font = '10px ui-monospace, SFMono-Regular, monospace';
+          for (let x = Math.floor((cx - viewW / 2) / 200) * 200; x <= endX; x += 200) {
+            if (x !== 0) ctx.fillText((x / 100).toFixed(0) + 'm', x + 4, cy + viewH / 2 - 8);
+          }
+
+          // Center axes
+          ctx.strokeStyle = 'rgba(0, 240, 255, 0.2)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(0, startY);
+          ctx.lineTo(0, endY);
+          ctx.moveTo(startX, 0);
+          ctx.lineTo(endX, 0);
+          ctx.stroke();
+        }
+
+        function drawStartMarker() {
+          ctx.save();
+          ctx.translate(0, 0);
+
+          // Outer pulse ring
+          ctx.strokeStyle = 'rgba(16, 185, 129, 0.4)';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(0, 0, 16, 0, Math.PI * 2);
+          ctx.stroke();
+
+          // Inner dot
+          ctx.fillStyle = '#10b981';
+          ctx.beginPath();
+          ctx.arc(0, 0, 4, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = '#86efac';
+          ctx.font = '10px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('출발점', 0, -22);
+          ctx.restore();
+        }
+
+        function drawRoute() {
+          if (pathPoints.length < 2) return;
+
+          ctx.save();
+          // Glow layer
+          ctx.shadowColor = '#00f0ff';
+          ctx.shadowBlur = 10;
+          ctx.strokeStyle = 'rgba(0, 240, 255, 0.75)';
+          ctx.lineWidth = 3.5;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+
+          ctx.beginPath();
+          ctx.moveTo(pathPoints[0].x, pathPoints[0].y);
+          for (let i = 1; i < pathPoints.length; i++) {
+            ctx.lineTo(pathPoints[i].x, pathPoints[i].y);
+          }
+          ctx.stroke();
+
+          // Inner bright core
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = '#e0faff';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+
+          // Direction chevrons along path
+          const step = Math.max(1, Math.floor(pathPoints.length / 20));
+          for (let i = step; i < pathPoints.length; i += step) {
+            const pt = pathPoints[i];
+            const rad = (pt.heading * Math.PI) / 180;
+            ctx.save();
+            ctx.translate(pt.x, pt.y);
+            ctx.rotate(rad);
+            ctx.fillStyle = '#00f0ff';
+            ctx.beginPath();
+            ctx.moveTo(0, -6);
+            ctx.lineTo(4, 2);
+            ctx.lineTo(0, 0);
+            ctx.lineTo(-4, 2);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+          }
+
+          ctx.restore();
+        }
+
+        function drawRobot(x, y, heading) {
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate((heading * Math.PI) / 180);
+
+          // Headlight scanner cone
+          const scanGrad = ctx.createRadialGradient(0, 0, 10, 0, -110, 100);
+          scanGrad.addColorStop(0, 'rgba(0, 240, 255, 0.25)');
+          scanGrad.addColorStop(1, 'rgba(0, 240, 255, 0.0)');
+          ctx.fillStyle = scanGrad;
+          ctx.beginPath();
+          ctx.moveTo(0, -10);
+          ctx.lineTo(-45, -120);
+          ctx.lineTo(45, -120);
+          ctx.closePath();
+          ctx.fill();
+
+          // Direction ray line
+          ctx.strokeStyle = 'rgba(0, 240, 255, 0.5)';
+          ctx.lineWidth = 1;
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath();
+          ctx.moveTo(0, -25);
+          ctx.lineTo(0, -140);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          // Tread Pods (Left & Right)
+          ctx.fillStyle = '#17233d';
+          ctx.strokeStyle = '#2d436e';
+          ctx.lineWidth = 1.5;
+
+          // Left tread
+          ctx.fillRect(-22, -24, 8, 48);
+          ctx.strokeRect(-22, -24, 8, 48);
+          // Right tread
+          ctx.fillRect(14, -24, 8, 48);
+          ctx.strokeRect(14, -24, 8, 48);
+
+          // Tread ribs
+          ctx.fillStyle = '#3f5d94';
+          for (let ty = -20; ty <= 20; ty += 8) {
+            ctx.fillRect(-21, ty, 6, 2);
+            ctx.fillRect(15, ty, 6, 2);
+          }
+
+          // Main Chassis Body
+          ctx.fillStyle = '#0e182e';
+          ctx.strokeStyle = '#00f0ff';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.roundRect(-14, -22, 28, 44, 6);
+          ctx.fill();
+          ctx.stroke();
+
+          // Hub Screen / Status LED Core
+          ctx.fillStyle = '#050c1c';
+          ctx.strokeStyle = '#1e3863';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.roundRect(-9, -15, 18, 20, 3);
+          ctx.fill();
+          ctx.stroke();
+
+          // 5x5 Hub LED Grid Matrix simulation
+          ctx.fillStyle = isRunning ? '#00f0ff' : '#475569';
+          for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 3; c++) {
+              ctx.beginPath();
+              ctx.arc(-5 + c * 5, -10 + r * 5, 1.2, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+
+          // Forward Direction Chevron on Chassis
+          ctx.fillStyle = '#00f0ff';
+          ctx.beginPath();
+          ctx.moveTo(0, -19);
+          ctx.lineTo(5, -14);
+          ctx.lineTo(2, -14);
+          ctx.lineTo(0, -16);
+          ctx.lineTo(-2, -14);
+          ctx.lineTo(-5, -14);
+          ctx.closePath();
+          ctx.fill();
+
+          // Sensor Pods Front
+          ctx.fillStyle = '#38bdf8';
+          ctx.beginPath();
+          ctx.arc(-7, -23, 2.5, 0, Math.PI * 2);
+          ctx.arc(7, -23, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.restore();
+        }
+
+        // Setup Event Listeners
+        startBtn.addEventListener('click', startGame);
+        exitBtn.addEventListener('click', exitGame);
+        resetCenterBtn.addEventListener('click', recalibrateCenter);
+        clearRouteBtn.addEventListener('click', clearRoute);
+        viewModeBtn.addEventListener('click', toggleViewMode);
+
+        // Sound Toggle
+        soundToggleBtn.addEventListener('click', function () {
+          isMuted = !isMuted;
+          if (window.spike && window.spike.audio) {
+            try {
+              window.spike.audio.setMuted(isMuted);
+            } catch (e) {}
+          }
+          if (isMuted) {
+            soundLabel.textContent = '소리 켜기';
+            stopAudio();
+          } else {
+            soundLabel.textContent = '소리 끄기';
+            initAudio();
+            playTone(660, 0.1, 'sine', 0.15);
+          }
+        });
+
+        // Sensitivity Slider
+        sensitivitySlider.addEventListener('input', function (e) {
+          sensitivity = parseFloat(e.target.value);
+          sensitivityVal.textContent = sensitivity.toFixed(1) + 'x';
+          updateEffectiveHeading();
+          if (isReady && window.spike && typeof window.spike.setSensitivity === 'function') {
+            try {
+              window.spike.setSensitivity('tilt', sensitivity);
+            } catch (err) {}
+          }
+        });
+
+        // Speed Selector
+        speedGroup.addEventListener('click', function (e) {
+          const btn = e.target.closest('.speed-btn');
+          if (!btn) return;
+          const level = parseInt(btn.dataset.speed, 10);
+          speedLevel = level;
+          const buttons = speedGroup.querySelectorAll('.speed-btn');
+          buttons.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+        });
+
+        // Keyboard Shortcut: 'R' to reset center
+        window.addEventListener('keydown', function (e) {
+          if (e.key === 'r' || e.key === 'R') {
+            const active = document.activeElement;
+            if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) {
+              return;
+            }
+            recalibrateCenter();
+          }
+        });
+
+        // Page Visibility & Lifecycle
+        window.addEventListener('pagehide', exitGame);
+        document.addEventListener('visibilitychange', function () {
+          if (document.hidden && isRunning) {
+            exitGame();
+          }
+        });
+
+        // Initialize Canvas
+        resizeCanvas();
+
+        // Check SPIKE SDK integration
+        if (typeof Spike !== 'undefined') {
+          try {
+            const spikeInstance = new Spike('student.1c9869f16e4441daa90c25aeb80dae76');
+            window.spike = spikeInstance;
+
+            spikeInstance.addEventListener('ready', function () {
+              isReady = true;
+              startBtn.disabled = false;
+              setStatus('허브 연결 완료', 'ready');
+              standbyBadge.textContent = '허브 연결 완료 - 주행 시작을 누르세요';
+              standbyBadge.className = 'standby-badge ready';
+            });
+
+            spikeInstance.addEventListener('sensor', function (e) {
+              const roles = e.detail;
+              if (roles && roles.tilt) {
+                handleTiltSensor(roles.tilt);
+              }
+            });
+
+            spikeInstance.addEventListener('action', function (e) {
+              const detail = e.detail;
+              if (detail && detail.name === 'action_tilt' && typeof detail.value === 'number') {
+                handleHeadingAction(detail.value);
+              }
+            });
+
+            spikeInstance.addEventListener('control', function (e) {
+              const c = e.detail;
+              if (c && c.calibrated) {
+                isCalibrated = true;
+              }
+            });
+
+            spikeInstance.addEventListener('paused', function () {
+              handlePause();
+            });
+
+            spikeInstance.addEventListener('ack', function () {});
+
+            spikeInstance.connect();
+          } catch (err) {
+            console.error(err);
+            setStatus('연결 오류', 'danger');
+            startBtn.disabled = true;
+          }
+        } else {
+          // SDK not present in standalone preview
+          setStatus('REPLAY 대기', 'warn');
+          startBtn.disabled = true;
+          standbyBadge.textContent = 'REPLAY에서 실행해 주세요';
+        }
+      })();
+    </script>
+  </body>
+</html>
