@@ -1,5 +1,5 @@
 {
-  "summary": "REPLAY 등록용 The Robot Rute 최신 완성 index.html 파일입니다. 웹 화면에서 즉시 플레이 가능하며, REPLAY에 업로드 시 공식 SPIKE SDK와 자동으로 연동됩니다.",
-  "updatedAt": "2026-10-17T13:04:08.032263925Z",
+  "summary": "REPLAY 공식 검증 기준(초기 시작 버튼 비활성화, action 단일 입력 경로, spike.audio 수명 주기, paused 처리, 순수 단일 파일)을 100% 만족하는 완성 index.html 파일입니다.",
+  "updatedAt": "2026-10-17T13:15:56.148814129Z",
   "userFacing": true
 }

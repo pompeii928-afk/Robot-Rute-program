@@ -212,7 +212,6 @@
         width: 100%;
         height: 100%;
         background-color: var(--bg-main);
-        cursor: crosshair;
       }
 
       /* Floating Telemetry HUD */
@@ -273,8 +272,8 @@
         flex-direction: column;
         align-items: center;
         gap: 4px;
+        pointer-events: none;
         z-index: 10;
-        cursor: pointer;
       }
       .compass-svg {
         width: 72px;
@@ -484,7 +483,7 @@
         z-index: 15;
         padding: 24px;
         text-align: center;
-        cursor: pointer;
+        pointer-events: none;
       }
       .standby-card {
         background: rgba(16, 28, 54, 0.85);
@@ -511,11 +510,16 @@
         display: inline-block;
         padding: 8px 16px;
         border-radius: 8px;
-        background: rgba(16, 185, 129, 0.15);
-        border: 1px solid rgba(16, 185, 129, 0.4);
-        color: #a7f3d0;
+        background: rgba(245, 158, 11, 0.15);
+        border: 1px solid rgba(245, 158, 11, 0.4);
+        color: #fef08a;
         font-size: 13px;
         font-weight: 600;
+      }
+      .standby-badge.ready {
+        background: rgba(16, 185, 129, 0.15);
+        border-color: rgba(16, 185, 129, 0.4);
+        color: #a7f3d0;
       }
 
       /* Responsive rules */
@@ -588,9 +592,9 @@
       </div>
 
       <div class="header-right">
-        <div class="status-pill ready" id="statusPill">
+        <div class="status-pill" id="statusPill">
           <div class="status-dot"></div>
-          <span id="statusText">준비 완료</span>
+          <span id="statusText">초기화 중</span>
         </div>
 
         <button type="button" class="btn-header" id="soundToggleBtn">
@@ -625,8 +629,8 @@
               로봇이 회전하고 움직이는 동선을 가상 공간에서 실시간으로 추적합니다.<br />
               실제 로봇의 각도와 동일하게 가상 로봇이 경로를 그립니다.
             </div>
-            <div class="standby-badge ready" id="standbyBadge">
-              준비 완료 - 주행 시작을 클릭하세요
+            <div class="standby-badge" id="standbyBadge">
+              REPLAY에서 실행해 주세요
             </div>
           </div>
         </div>
@@ -682,7 +686,7 @@
     <footer>
       <div class="dock-row">
         <div class="controls-primary">
-          <button type="button" class="btn-primary" id="startBtn">
+          <button type="button" class="btn-primary" id="startBtn" disabled>
             <!-- Play SVG -->
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
               <polygon points="5 3 19 12 5 21 5 3"></polygon>
@@ -780,12 +784,11 @@
         const noticeBanner = document.getElementById('noticeBanner');
 
         // State variables
-        let isReady = true;
+        let isReady = false;
         let isRunning = false;
         let isCalibrated = false;
         let isMuted = false;
         let isOverviewMode = false;
-        let isPointerDown = false;
 
         // Robot & Route physics
         let robotX = 0;
@@ -801,14 +804,6 @@
         let pathPoints = []; // [{x, y, heading, dist}]
         let lastFrameTime = performance.now();
         let animationFrameId = null;
-
-        // Keyboard tracking for smooth rotation
-        const keysDown = {};
-
-        // Audio state
-        let audioCtx = null;
-        let engineOsc = null;
-        let engineGain = null;
 
         // Banner timer
         let bannerTimeout = null;
@@ -832,27 +827,16 @@
 
         function setStatus(text, type) {
           statusText.textContent = text;
-          statusPill.className = 'status-pill ' + type;
+          statusPill.className = 'status-pill' + (type ? ' ' + type : '');
         }
 
-        // Initialize Audio using SDK or WebAudio fallback
-        function initAudio() {
+        // Initialize Audio using SDK
+        function startAudio() {
           if (isMuted) return;
-          try {
-            if (window.spike && window.spike.audio) {
+          if (window.spike && window.spike.audio) {
+            try {
               window.spike.audio.start();
-              audioCtx = window.spike.audio.context();
-            } else if (!audioCtx) {
-              const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-              if (AudioContextClass) {
-                audioCtx = new AudioContextClass();
-              }
-            }
-            if (audioCtx && audioCtx.state === 'suspended') {
-              audioCtx.resume();
-            }
-          } catch (e) {
-            // Audio context policy
+            } catch (e) {}
           }
         }
 
@@ -862,30 +846,13 @@
               window.spike.audio.stop();
             } catch (e) {}
           }
-          if (engineOsc) {
-            try {
-              engineOsc.stop();
-              engineOsc.disconnect();
-            } catch (e) {}
-            engineOsc = null;
-          }
-          if (engineGain) {
-            try {
-              engineGain.disconnect();
-            } catch (e) {}
-            engineGain = null;
-          }
         }
 
         function playTone(freq, duration, type = 'sine', volume = 0.15) {
           if (isMuted) return;
           try {
-            let ctxToUse = null;
-            if (window.spike && window.spike.audio) {
-              ctxToUse = window.spike.audio.context();
-            } else {
-              ctxToUse = audioCtx;
-            }
+            if (!window.spike || !window.spike.audio) return;
+            const ctxToUse = window.spike.audio.context();
             if (!ctxToUse || ctxToUse.state !== 'running') return;
             const osc = ctxToUse.createOscillator();
             const gain = ctxToUse.createGain();
@@ -940,57 +907,10 @@
           targetHeading = delta * sensitivity;
         }
 
+        // Dedicated single-path input handler for action_tilt
         function handleHeadingAction(val) {
           rawHeading = val;
           updateEffectiveHeading();
-        }
-
-        function handleTiltSensor(tiltObj) {
-          if (typeof tiltObj.heading_deg === 'number') {
-            rawHeading = tiltObj.heading_deg;
-            updateEffectiveHeading();
-          }
-        }
-
-        // Steer robot towards clicked/dragged coordinate
-        function steerTowardsPoint(clientX, clientY) {
-          const rect = canvas.getBoundingClientRect();
-          const dpr = window.devicePixelRatio || 1;
-          const clickCanvasX = (clientX - rect.left) * dpr;
-          const clickCanvasY = (clientY - rect.top) * dpr;
-
-          const w = canvas.width;
-          const h = canvas.height;
-          let camX = robotX;
-          let camY = robotY;
-          let camScale = 1.0;
-
-          if (isOverviewMode && pathPoints.length > 1) {
-            let minX = robotX, maxX = robotX, minY = robotY, maxY = robotY;
-            for (let i = 0; i < pathPoints.length; i++) {
-              const pt = pathPoints[i];
-              if (pt.x < minX) minX = pt.x;
-              if (pt.x > maxX) maxX = pt.x;
-              if (pt.y < minY) minY = pt.y;
-              if (pt.y > maxY) maxY = pt.y;
-            }
-            camX = (minX + maxX) / 2;
-            camY = (minY + maxY) / 2;
-            const spanX = Math.max(maxX - minX + 160, 300);
-            const spanY = Math.max(maxY - minY + 160, 300);
-            camScale = Math.min(Math.max(Math.min((w / dpr) / spanX, (h / dpr) / spanY), 0.2), 1.6);
-          }
-
-          const worldX = ((clickCanvasX / dpr) - (w / dpr) / 2) / camScale + camX;
-          const worldY = ((clickCanvasY / dpr) - (h / dpr) / 2) / camScale + camY;
-
-          const dx = worldX - robotX;
-          const dy = worldY - robotY;
-          if (Math.hypot(dx, dy) > 8) {
-            const angleDeg = (Math.atan2(dx, -dy) * 180) / Math.PI;
-            rawHeading = angleDeg;
-            updateEffectiveHeading();
-          }
         }
 
         // Route Clear
@@ -1031,7 +951,7 @@
           telemetryOverlay.style.display = 'none';
           compassHud.style.display = 'none';
           startBtnText.textContent = '주행 시작';
-          setStatus(isReady ? '준비 완료' : '초기화 대기', isReady ? 'ready' : '');
+          setStatus(isReady ? '허브 연결 완료' : '초기화 대기', isReady ? 'ready' : '');
           hideBanner();
         }
 
@@ -1059,7 +979,7 @@
           if (!isReady) return;
           if (!isRunning) {
             isRunning = true;
-            initAudio();
+            startAudio();
             playStartChime();
             if (window.spike && typeof window.spike.calibrate === 'function') {
               try {
@@ -1080,7 +1000,6 @@
             if (pathPoints.length === 0) {
               pathPoints.push({ x: robotX, y: robotY, heading: currentHeading, dist: 0 });
             }
-            showBanner('방향키(← →) 또는 화면 클릭으로 로봇의 방향을 조작하세요.', false, 3000);
             requestAnimationFrame(gameLoop);
           }
         }
@@ -1090,16 +1009,6 @@
           if (!isRunning) return;
           const dt = Math.min((timestamp - lastFrameTime) / 1000, 0.1);
           lastFrameTime = timestamp;
-
-          // Keyboard steering in web mode
-          if (keysDown['ArrowLeft'] || keysDown['a'] || keysDown['A']) {
-            rawHeading -= 130 * dt * sensitivity;
-            updateEffectiveHeading();
-          }
-          if (keysDown['ArrowRight'] || keysDown['d'] || keysDown['D']) {
-            rawHeading += 130 * dt * sensitivity;
-            updateEffectiveHeading();
-          }
 
           // Smooth heading interpolation
           const angleDiff = targetHeading - currentHeading;
@@ -1159,7 +1068,6 @@
           let camScale = 1.0;
 
           if (isOverviewMode && pathPoints.length > 1) {
-            // Compute bounding box
             let minX = robotX, maxX = robotX, minY = robotY, maxY = robotY;
             for (let i = 0; i < pathPoints.length; i++) {
               const pt = pathPoints[i];
@@ -1418,43 +1326,10 @@
 
         // Setup Event Listeners
         startBtn.addEventListener('click', startGame);
-        standbySplash.addEventListener('click', startGame);
         exitBtn.addEventListener('click', exitGame);
         resetCenterBtn.addEventListener('click', recalibrateCenter);
         clearRouteBtn.addEventListener('click', clearRoute);
         viewModeBtn.addEventListener('click', toggleViewMode);
-
-        // Interactive canvas steering (pointer click & drag)
-        canvas.addEventListener('pointerdown', function (e) {
-          if (!isRunning) {
-            startGame();
-            return;
-          }
-          isPointerDown = true;
-          steerTowardsPoint(e.clientX, e.clientY);
-        });
-
-        window.addEventListener('pointermove', function (e) {
-          if (isPointerDown && isRunning) {
-            steerTowardsPoint(e.clientX, e.clientY);
-          }
-        });
-
-        window.addEventListener('pointerup', function () {
-          isPointerDown = false;
-        });
-
-        // Click compass HUD to steer
-        compassHud.addEventListener('pointerdown', function (e) {
-          e.stopPropagation();
-          const rect = compassHud.getBoundingClientRect();
-          const cx = rect.left + rect.width / 2;
-          const cy = rect.top + rect.height / 2;
-          const dx = e.clientX - cx;
-          const dy = e.clientY - cy;
-          rawHeading = (Math.atan2(dx, -dy) * 180) / Math.PI;
-          updateEffectiveHeading();
-        });
 
         // Sound Toggle
         soundToggleBtn.addEventListener('click', function () {
@@ -1469,7 +1344,7 @@
             stopAudio();
           } else {
             soundLabel.textContent = '소리 끄기';
-            initAudio();
+            startAudio();
             playTone(660, 0.1, 'sine', 0.15);
           }
         });
@@ -1497,7 +1372,7 @@
           btn.classList.add('active');
         });
 
-        // Keyboard Shortcut: 'R' to reset center, Arrow keys to steer
+        // Keyboard Shortcut: 'R' to reset center
         window.addEventListener('keydown', function (e) {
           const active = document.activeElement;
           const isInputActive = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT');
@@ -1507,15 +1382,6 @@
               recalibrateCenter();
             }
           }
-          if (!isInputActive) {
-            if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'a' || e.key === 'A' || e.key === 'd' || e.key === 'D') {
-              keysDown[e.key] = true;
-            }
-          }
-        });
-
-        window.addEventListener('keyup', function (e) {
-          delete keysDown[e.key];
         });
 
         // Page Visibility & Lifecycle
@@ -1544,13 +1410,7 @@
               standbyBadge.className = 'standby-badge ready';
             });
 
-            spikeInstance.addEventListener('sensor', function (e) {
-              const roles = e.detail;
-              if (roles && roles.tilt) {
-                handleTiltSensor(roles.tilt);
-              }
-            });
-
+            // Single input path: continuous action_tilt
             spikeInstance.addEventListener('action', function (e) {
               const detail = e.detail;
               if (detail && detail.name === 'action_tilt' && typeof detail.value === 'number') {
@@ -1578,12 +1438,10 @@
             startBtn.disabled = true;
           }
         } else {
-          // Web Preview Mode in Browser
-          isReady = true;
-          startBtn.disabled = false;
-          setStatus('준비 완료', 'ready');
-          standbyBadge.textContent = '준비 완료 - 주행 시작을 클릭하세요';
-          standbyBadge.className = 'standby-badge ready';
+          // SDK not present
+          setStatus('초기화 대기', 'warn');
+          startBtn.disabled = true;
+          standbyBadge.textContent = 'REPLAY에서 실행해 주세요';
         }
       })();
     </script>
