@@ -636,7 +636,7 @@
         </div>
 
         <!-- Telemetry Floating HUD -->
-        <div class="telemetry-overlay" id="telemetryOverlay" style="display: none;">
+        <div class="telemetry-overlay" id="telemetryOverlay">
           <div class="hud-card">
             <div>
               <div class="hud-label">현재 방향</div>
@@ -658,7 +658,7 @@
         </div>
 
         <!-- Compass Ring HUD -->
-        <div class="compass-hud" id="compassHud" style="display: none;">
+        <div class="compass-hud" id="compassHud">
           <svg class="compass-svg" viewBox="0 0 100 100">
             <circle cx="50" cy="50" r="44" fill="none" stroke="#1e2f52" stroke-width="2"></circle>
             <circle cx="50" cy="50" r="38" fill="none" stroke="#13203c" stroke-width="1" stroke-dasharray="2 3"></circle>
@@ -894,21 +894,41 @@
           currentHeading = 0;
           if (window.spike && typeof window.spike.calibrate === 'function') {
             try {
-              window.spike.calibrate();
-            } catch (e) {}
+              window.spike.calibrate('tilt');
+            } catch (e) {
+              try { window.spike.calibrate(); } catch (e2) {}
+            }
           }
           playCenterResetChime();
+          updateHudDisplays();
+          drawScene();
           showBanner('로봇 기준 방향이 0도로 재설정되었습니다.', false, 1800);
+        }
+
+        // Dedicated HUD & Compass updates
+        function updateHudDisplays() {
+          const displayHeading = ((currentHeading % 360) + 360) % 360;
+          if (hudHeading) hudHeading.textContent = displayHeading.toFixed(1) + '°';
+          if (hudDistance) hudDistance.textContent = (totalDistance / 100).toFixed(2) + ' m';
+          if (hudPoints) hudPoints.textContent = pathPoints.length.toString();
+          if (compassNeedle) compassNeedle.setAttribute('transform', 'rotate(' + displayHeading + ' 50 50)');
+          if (compassAngleText) compassAngleText.textContent = displayHeading.toFixed(1) + '°';
         }
 
         // Heading computation
         function updateEffectiveHeading() {
           const delta = rawHeading - zeroHeading;
           targetHeading = delta * sensitivity;
+          if (!isRunning) {
+            currentHeading = targetHeading;
+            updateHudDisplays();
+            drawScene();
+          }
         }
 
-        // Dedicated single-path input handler for action_tilt
+        // Dedicated input handler for tilt heading
         function handleHeadingAction(val) {
+          if (typeof val !== 'number' || isNaN(val)) return;
           rawHeading = val;
           updateEffectiveHeading();
         }
@@ -921,6 +941,8 @@
           robotY = 0;
           pathPoints.push({ x: 0, y: 0, heading: currentHeading, dist: 0 });
           playTone(400, 0.12, 'sawtooth', 0.1);
+          updateHudDisplays();
+          drawScene();
           showBanner('동선 기록이 초기화되었습니다.', false, 1500);
         }
 
@@ -932,6 +954,7 @@
           } else {
             viewModeText.textContent = '시점: 로봇 추적';
           }
+          drawScene();
         }
 
         // Exit / Stop Game
@@ -948,8 +971,6 @@
             } catch (e) {}
           }
           standbySplash.style.display = 'flex';
-          telemetryOverlay.style.display = 'none';
-          compassHud.style.display = 'none';
           startBtnText.textContent = '주행 시작';
           setStatus(isReady ? '허브 연결 완료' : '초기화 대기', isReady ? 'ready' : '');
           hideBanner();
@@ -976,15 +997,17 @@
 
         // Start / Resume Game
         function startGame() {
-          if (!isReady) return;
+          if (startBtn.disabled) return;
           if (!isRunning) {
             isRunning = true;
             startAudio();
             playStartChime();
             if (window.spike && typeof window.spike.calibrate === 'function') {
               try {
-                window.spike.calibrate();
-              } catch (e) {}
+                window.spike.calibrate('tilt');
+              } catch (e) {
+                try { window.spike.calibrate(); } catch (e2) {}
+              }
             }
             if (window.spike && typeof window.spike.light === 'function') {
               try {
@@ -992,8 +1015,6 @@
               } catch (e) {}
             }
             standbySplash.style.display = 'none';
-            telemetryOverlay.style.display = 'flex';
-            compassHud.style.display = 'flex';
             startBtnText.textContent = '주행 중';
             setStatus('주행 중', 'running');
             lastFrameTime = performance.now();
@@ -1010,8 +1031,30 @@
           const dt = Math.min((timestamp - lastFrameTime) / 1000, 0.1);
           lastFrameTime = timestamp;
 
-          // Smooth heading interpolation
-          const angleDiff = targetHeading - currentHeading;
+          // Poll readControl if provided by SDK
+          if (window.spike && typeof window.spike.readControl === 'function') {
+            try {
+              const c = window.spike.readControl('tilt', timestamp);
+              if (c && c.valid !== false && c.calibrated !== false) {
+                let val = null;
+                if (typeof c.heading_deg === 'number') {
+                  val = c.heading_deg;
+                } else if (typeof c.yaw === 'number') {
+                  val = c.yaw;
+                } else if (typeof c.value === 'number') {
+                  val = c.value;
+                }
+                if (val !== null) {
+                  handleHeadingAction(val);
+                }
+              }
+            } catch (e) {}
+          }
+
+          // Smooth heading interpolation with shortest-arc angle diff
+          let angleDiff = (targetHeading - currentHeading) % 360;
+          if (angleDiff > 180) angleDiff -= 360;
+          if (angleDiff < -180) angleDiff += 360;
           currentHeading += angleDiff * Math.min(1, dt * 18);
 
           // Position integration along heading
@@ -1040,12 +1083,7 @@
           }
 
           // Update HUD readouts
-          const displayHeading = ((currentHeading % 360) + 360) % 360;
-          hudHeading.textContent = displayHeading.toFixed(1) + '°';
-          hudDistance.textContent = (totalDistance / 100).toFixed(2) + ' m';
-          hudPoints.textContent = pathPoints.length.toString();
-          compassNeedle.setAttribute('transform', 'rotate(' + displayHeading + ' 50 50)');
-          compassAngleText.textContent = displayHeading.toFixed(1) + '°';
+          updateHudDisplays();
 
           // Render canvas
           drawScene();
@@ -1372,7 +1410,7 @@
           btn.classList.add('active');
         });
 
-        // Keyboard Shortcut: 'R' to reset center
+        // Keyboard Shortcuts: 'R' to reset center, Arrow Left/Right to steer in web mode
         window.addEventListener('keydown', function (e) {
           const active = document.activeElement;
           const isInputActive = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT');
@@ -1381,6 +1419,40 @@
             if (!isInputActive) {
               recalibrateCenter();
             }
+          } else if (!isInputActive && (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A')) {
+            rawHeading -= 12;
+            updateEffectiveHeading();
+          } else if (!isInputActive && (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D')) {
+            rawHeading += 12;
+            updateEffectiveHeading();
+          }
+        });
+
+        // Pointer steering on canvas for simulation
+        let isPointerDown = false;
+        let lastPointerX = 0;
+        canvas.addEventListener('pointerdown', function (e) {
+          isPointerDown = true;
+          lastPointerX = e.clientX;
+        });
+        window.addEventListener('pointermove', function (e) {
+          if (!isPointerDown) return;
+          const dx = e.clientX - lastPointerX;
+          lastPointerX = e.clientX;
+          rawHeading += dx * 0.5;
+          updateEffectiveHeading();
+        });
+        window.addEventListener('pointerup', function () {
+          isPointerDown = false;
+        });
+        window.addEventListener('pointercancel', function () {
+          isPointerDown = false;
+        });
+
+        // Click on standby splash to start
+        standbySplash.addEventListener('click', function () {
+          if (!startBtn.disabled) {
+            startGame();
           }
         });
 
@@ -1394,14 +1466,24 @@
 
         // Initialize Canvas & Initial Draw
         resizeCanvas();
+        updateHudDisplays();
         drawScene();
 
         // Check SPIKE SDK integration
-        if (typeof Spike !== 'undefined') {
+        let spikeInstance = null;
+        if (typeof window.spike !== 'undefined' && window.spike) {
+          spikeInstance = window.spike;
+        } else if (typeof Spike !== 'undefined') {
           try {
-            const spikeInstance = new Spike('student.1c9869f16e4441daa90c25aeb80dae76');
+            spikeInstance = new Spike('student.1c9869f16e4441daa90c25aeb80dae76');
             window.spike = spikeInstance;
+          } catch (err) {
+            console.error('Failed to construct Spike instance:', err);
+          }
+        }
 
+        if (spikeInstance) {
+          try {
             spikeInstance.addEventListener('ready', function () {
               isReady = true;
               startBtn.disabled = false;
@@ -1410,22 +1492,77 @@
               standbyBadge.className = 'standby-badge ready';
             });
 
+            // Sensor event (custom gyro input / raw reading)
             spikeInstance.addEventListener('sensor', function (e) {
-              // Sensor role verification
-            });
-
-            // Single input path: continuous action_tilt
-            spikeInstance.addEventListener('action', function (e) {
-              const detail = e.detail;
-              if (detail && detail.name === 'action_tilt' && typeof detail.value === 'number') {
-                handleHeadingAction(detail.value);
+              const d = e.detail;
+              if (!d) return;
+              let val = null;
+              if (d.role === 'tilt') {
+                val = typeof d.heading_deg === 'number' ? d.heading_deg :
+                      typeof d.yaw === 'number' ? d.yaw :
+                      typeof d.value === 'number' ? d.value : null;
+              } else if (d.tilt) {
+                val = typeof d.tilt.heading_deg === 'number' ? d.tilt.heading_deg :
+                      typeof d.tilt.yaw === 'number' ? d.tilt.yaw :
+                      typeof d.tilt.value === 'number' ? d.tilt.value : null;
+              } else if (typeof d.heading_deg === 'number') {
+                val = d.heading_deg;
+              } else if (typeof d.yaw === 'number') {
+                val = d.yaw;
+              }
+              if (val !== null) {
+                handleHeadingAction(val);
               }
             });
 
+            // Action event (custom preset action_tilt continuous)
+            spikeInstance.addEventListener('action', function (e) {
+              const d = e.detail;
+              if (!d) return;
+              let val = null;
+              if (d.name === 'action_tilt' || d.role === 'tilt') {
+                val = typeof d.value === 'number' ? d.value :
+                      typeof d.heading_deg === 'number' ? d.heading_deg :
+                      typeof d.yaw === 'number' ? d.yaw : null;
+              } else if (typeof d.value === 'number') {
+                val = d.value;
+              }
+              if (val !== null) {
+                handleHeadingAction(val);
+              }
+            });
+
+            // Control event (posture, calibrating, valid status check)
             spikeInstance.addEventListener('control', function (e) {
               const c = e.detail;
-              if (c && c.calibrated) {
-                isCalibrated = true;
+              if (!c) return;
+              if (c.role === 'tilt' || !c.role) {
+                if (c.status === 'calibrating') {
+                  setStatus('중심 맞추기 진행 중', 'warn');
+                } else if (c.status === 'posture') {
+                  setStatus('지원 자세 밖 (중심 유지)', 'warn');
+                } else if (c.status === 'ready') {
+                  if (isRunning) setStatus('주행 중', 'running');
+                  else if (isReady) setStatus('허브 연결 완료', 'ready');
+                }
+
+                if (c.calibrated !== undefined) {
+                  isCalibrated = !!c.calibrated;
+                }
+
+                if (c.valid !== false) {
+                  let val = null;
+                  if (typeof c.heading_deg === 'number') {
+                    val = c.heading_deg;
+                  } else if (typeof c.yaw === 'number') {
+                    val = c.yaw;
+                  } else if (typeof c.value === 'number') {
+                    val = c.value;
+                  }
+                  if (val !== null) {
+                    handleHeadingAction(val);
+                  }
+                }
               }
             });
 
@@ -1435,17 +1572,19 @@
 
             spikeInstance.addEventListener('ack', function () {});
 
-            spikeInstance.connect();
+            if (typeof spikeInstance.connect === 'function') {
+              spikeInstance.connect();
+            }
           } catch (err) {
-            console.error(err);
+            console.error('Spike setup error:', err);
             setStatus('연결 오류', 'danger');
             startBtn.disabled = true;
           }
         } else {
-          // SDK not present
+          // SDK not present: allow standalone web preview execution
           setStatus('초기화 대기', 'warn');
-          startBtn.disabled = true;
-          standbyBadge.textContent = 'REPLAY에서 실행해 주세요';
+          startBtn.disabled = false;
+          standbyBadge.textContent = '웹 시뮬레이션 모드 - 주행 시작을 누르세요';
         }
       })();
     </script>

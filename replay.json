@@ -1,0 +1,38 @@
+{
+  "protocol": 1,
+  "id": "student.1c9869f16e4441daa90c25aeb80dae76",
+  "name": "The Robot Rute",
+  "profile": {
+    "version": 3,
+    "devices": {
+      "tilt": {
+        "type": "gyro",
+        "label": "허브 자세·방향",
+        "use": "input",
+        "behavior": {
+          "preset": "custom",
+          "description": "로봇이 도는 각도 그대로 사이트에 가상의 로봇이 로봇의 움직임을 그대로 따라가야 한다."
+        }
+      }
+    }
+  },
+  "commands": [
+    "light",
+    "stop"
+  ],
+  "description": "Made by K.F.C. robotics",
+  "controls": [
+    "로봇에게 움직임을 부여하면 그대로 사이트에 있는 가상의 로봇이 움직인다."
+  ],
+  "inputs": [
+    {
+      "name": "action_tilt",
+      "role": "tilt",
+      "field": "heading_deg",
+      "mode": "continuous"
+    }
+  ],
+  "revision": "1",
+  "cover": "",
+  "preview": ""
+}
