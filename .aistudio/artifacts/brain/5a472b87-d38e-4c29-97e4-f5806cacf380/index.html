@@ -1410,6 +1410,10 @@
               standbyBadge.className = 'standby-badge ready';
             });
 
+            spikeInstance.addEventListener('sensor', function (e) {
+              // Sensor role verification
+            });
+
             // Single input path: continuous action_tilt
             spikeInstance.addEventListener('action', function (e) {
               const detail = e.detail;

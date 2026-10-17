@@ -1408,6 +1408,8 @@
               setStatus('허브 연결 완료', 'ready');
               standbyBadge.textContent = '허브 연결 완료 - 주행 시작을 누르세요';
               standbyBadge.className = 'standby-badge ready';
+            spikeInstance.addEventListener('sensor', function (e) {
+              // Sensor role verification
             });
 
             // Single input path: continuous action_tilt
