@@ -1,5 +1,5 @@
 {
-  "summary":  "REPLAY의 '완성 파일 가져오기'에 바로 업로드할 수 있는 The Robot Rute 완성 index.html 파일입니다.",
-  "updatedAt":  "2026-10-10T13:34:11.366337183Z",
-  "userFacing":  true
+  "summary": "REPLAY 등록용 The Robot Rute 최신 완성 index.html 파일입니다. 웹 화면에서 즉시 플레이 가능하며, REPLAY에 업로드 시 공식 SPIKE SDK와 자동으로 연동됩니다.",
+  "updatedAt": "2026-10-17T13:04:08.032263925Z",
+  "userFacing": true
 }
